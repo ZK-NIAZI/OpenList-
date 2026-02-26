@@ -72,9 +72,7 @@ class _TasksScreenState extends ConsumerState<TasksScreen> {
               child: IconButton(
                 icon: const Icon(Icons.search, color: Colors.white, size: 20),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Search coming soon!')),
-                  );
+                  context.push('/search');
                 },
                 padding: EdgeInsets.zero,
               ),

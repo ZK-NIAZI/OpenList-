@@ -19,10 +19,12 @@
 - **Notes & Lists** - Flexible content types for different use cases
 
 ### 🤝 Collaboration
-- **Share Items** - Share tasks and notes with team members
+- **Friends System** - Add and manage friends by email
+- **Share Items** - Share tasks and notes with friends via avatar selection
 - **Permission System** - View-only or edit access control
 - **Real-Time Updates** - See changes instantly across all devices
-- **Notifications** - Get notified about task updates, shares, and completions
+- **Notifications** - Get notified about task updates, shares, completions, and friend requests
+- **Notification Badge** - Unread notification count on alerts icon
 
 ### 🤖 AI-Powered
 - **Smart Task Extraction** - Extract tasks from natural language using Google Gemini 2.5 Flash
@@ -35,6 +37,8 @@
 - **Quick Add** - Rapidly create tasks from anywhere
 - **Dashboard** - Visual progress tracking with progress ring
 - **Search & Filter** - Find tasks quickly
+- **Profile Management** - View display name, email, plan, and reset password
+- **Space Filtering** - Switch between Personal and Shared spaces
 
 ---
 
@@ -132,17 +136,25 @@
 4. Tap Save
 
 ### Using AI Extraction
-1. In Quick Add or Notes, tap the magic wand (✨) button
-2. Enter natural language like: "Buy groceries tomorrow at 5pm"
-3. AI extracts task details automatically
-4. Review and save
+1. In task detail screen, tap the magic wand (✨) button
+2. AI extracts multiple tasks from note content automatically
+3. Supports natural language dates like "tomorrow", "next week", etc.
+4. Prevents duplicate tasks with same title and due date
+5. Shows count of created and skipped tasks
 
 ### Sharing Tasks
 1. Open task detail
 2. Tap Share button
-3. Enter collaborator's email
-4. Select permission (View or Edit)
-5. Send invitation
+3. Select friends from avatar list (tap to select/deselect)
+4. Choose permission (View or Edit)
+5. Share - automatically includes referenced tasks in notes
+
+### Managing Friends
+1. Navigate to Friends screen from sidebar
+2. Tap "Add Friend" button
+3. Enter friend's email address
+4. Friend receives notification and can accept/reject
+5. View friends, pending requests, and sent requests in separate tabs
 
 ### Organizing with Sub-Tasks
 1. Open task detail
@@ -261,9 +273,11 @@ flutter build web --release
 ## 🛣️ Roadmap
 
 ### Short-Term (Next 2-3 weeks)
-- [ ] Friends system (add/manage friends)
+- [x] Friends system (add/manage friends)
+- [x] Profile management with password reset
+- [x] Notification badges and navigation
+- [x] AI multiple task extraction
 - [ ] Image upload and display
-- [ ] Space management
 - [ ] Local reminders
 
 ### Medium-Term (1-2 months)
@@ -335,7 +349,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📈 Status
 
 **Current Version**: v1.0.0-beta  
-**Status**: 85% Complete - MVP Ready  
+**Status**: 90% Complete - MVP Ready  
 **Last Updated**: February 26, 2026
 
 ### Feature Completion
@@ -343,11 +357,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - ✅ Task Management
 - ✅ Offline-First Sync
 - ✅ Real-Time Collaboration
-- ✅ Notifications System
-- ✅ AI Task Extraction
+- ✅ Notifications System with Badges
+- ✅ AI Multiple Task Extraction
 - ✅ Sharing & Permissions
 - ✅ Sub-Tasks & Blocks
-- 🚧 Friends System (In Progress)
+- ✅ Friends System
+- ✅ Profile Management
 - ⏳ Image Support (Planned)
 - ⏳ Local Reminders (Planned)
 

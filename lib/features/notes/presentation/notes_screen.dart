@@ -86,9 +86,7 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
               child: IconButton(
                 icon: const Icon(Icons.search, color: Colors.white, size: 20),
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Search coming soon!')),
-                  );
+                  context.push('/search');
                 },
                 padding: EdgeInsets.zero,
               ),
@@ -101,49 +99,6 @@ class _NotesScreenState extends ConsumerState<NotesScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Space Filter Chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _buildSpaceChip('All', null),
-                  const SizedBox(width: 8),
-                  ..._spaces.map((space) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: _buildSpaceChip(space.name, space.spaceId),
-                  )),
-                  GestureDetector(
-                    onTap: _showAddSpaceDialog,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.primary, width: 1),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.add, size: 16, color: AppColors.primary),
-                          const SizedBox(width: 4),
-                          Text(
-                            'Add Space',
-                            style: GoogleFonts.inter(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 24),
-            
             // Pinned Notes
             Text(
               'Pinned',

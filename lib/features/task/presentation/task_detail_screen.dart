@@ -388,8 +388,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
                     const SizedBox(height: 20),
 
-                    // Add Sub-task Button (only show for tasks, not notes)
-                    if (_currentItem!.type == ItemType.task) ...[
+                    // Add Sub-task Button (only show for tasks, not notes, and not for subtasks)
+                    if (_currentItem!.type == ItemType.task && _currentItem!.parentId == null) ...[
                       ElevatedButton.icon(
                         onPressed: _addSubTask,
                         icon: const Icon(Icons.add),
@@ -410,8 +410,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                       const SizedBox(height: 20),
                     ],
 
-                    // Sub-tasks List (only show for tasks, not notes)
-                    if (_currentItem!.type == ItemType.task)
+                    // Sub-tasks List (only show for tasks, not notes, and not for subtasks)
+                    if (_currentItem!.type == ItemType.task && _currentItem!.parentId == null)
                       ValueListenableBuilder<List<ItemModel>>(
                         valueListenable: _subTasksNotifier,
                         builder: (context, subTasks, child) {
