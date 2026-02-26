@@ -1,0 +1,21 @@
+lib/
+├── main.dart
+├── app.dart
+├── core/
+│   ├── constants/
+│   ├── utils/
+│   └── theme/
+├── presentation/
+│   ├── dashboard/
+│   ├── task_detail/
+│   ├── section_detail/
+│   └── sidebar/
+├── domain/
+│   ├── entities/
+│   ├── repositories/
+│   └── usecases/
+├── data/
+│   ├── local/
+│   ├── remote/
+│   └── repositories/
+└── router/

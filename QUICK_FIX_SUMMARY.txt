@@ -1,0 +1,100 @@
+================================================================================
+SHARING FEATURE - QUICK FIX SUMMARY
+================================================================================
+
+ROOT CAUSE:
+-----------
+1. Tried to store EMAIL in UUID columns → Type mismatch errors
+2. RLS policies querying same table → Infinite recursion
+3. Complex policy dependencies → Can't alter columns
+
+THE FIX:
+--------
+1. Keep UUID columns (proper database design)
+2. Add email→UUID lookup function
+3. Simplify all RLS policies (no recursion)
+4. Update Flutter to use lookup
+
+WHAT TO DO NOW:
+---------------
+
+1. RUN SQL SCRIPT:
+   - Open Supabase Dashboard → SQL Editor
+   - Copy/paste contents of: fix_sharing_proper.sql
+   - Click "Run"
+   - Wait for "Tables created" message
+
+2. RESTART FLUTTER APP:
+   - Stop current app
+   - Run: flutter clean
+   - Run: flutter pub get
+   - Run: flutter run
+
+3. TEST SHARING:
+   - User A creates a note
+   - User A clicks share button
+   - User A enters User B's email
+   - User A clicks "Share"
+   - User B logs in
+   - User B should see the shared note
+
+WHAT CHANGED:
+-------------
+
+DATABASE:
+- All policies dropped and recreated (simple, no recursion)
+- Added get_user_id_by_email() function
+- Tables keep UUID structure (correct design)
+
+FLUTTER CODE:
+- share_dialog.dart: Now looks up UUID by email before sharing
+- sync_manager.dart: Queries by UUID only (not email)
+
+VERIFICATION:
+-------------
+
+Check if it worked:
+
+1. SQL Editor:
+   SELECT * FROM item_shares;
+   -- user_id should be UUID, not email
+
+2. Flutter logs:
+   I/flutter: 📥 Fetched X item shares
+   I/flutter: 📥 Fetched Y shared items
+   -- No "infinite recursion" errors
+
+3. App behavior:
+   - Share dialog works
+   - Other user sees shared items
+   - No sync errors
+
+COMMON ERRORS FIXED:
+--------------------
+
+❌ "invalid input syntax for type uuid"
+   → Fixed: Now using UUID, not email
+
+❌ "infinite recursion detected in policy"
+   → Fixed: Policies don't query themselves
+
+❌ "cannot alter type of column used in policy"
+   → Fixed: Not changing column types anymore
+
+❌ "User with email X not found"
+   → Make sure both users have signed up first
+
+FILES TO USE:
+-------------
+
+1. fix_sharing_proper.sql          ← RUN THIS IN SUPABASE
+2. SHARING_FIX_INSTRUCTIONS.md     ← DETAILED GUIDE
+3. SYNC_AND_SHARING_EXPLAINED.txt  ← HOW IT WORKS
+
+THAT'S IT!
+----------
+
+The sharing feature should now work correctly. The root cause was trying to
+use emails as UUIDs. Now we properly convert email→UUID before storing.
+
+================================================================================

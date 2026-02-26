@@ -1,0 +1,239 @@
+================================================================================
+SHARING ARCHITECTURE - BEFORE vs AFTER
+================================================================================
+
+BEFORE (BROKEN):
+================================================================================
+
+User A wants to share with "userb@example.com"
+  │
+  ├─ Flutter: userId = "userb@example.com" (EMAIL as string)
+  │
+  ├─ Sync to Supabase:
+  │   INSERT INTO item_shares (user_id) VALUES ('userb@example.com')
+  │                                              ^^^^^^^^^^^^^^^^^^^^
+  │                                              ❌ ERROR: Type mismatch!
+  │                                              Column is UUID, value is TEXT
+  │
+  └─ ❌ FAILED: "invalid input syntax for type uuid"
+
+
+User B tries to see shared items:
+  │
+  ├─ Query: SELECT * FROM item_shares WHERE user_id = auth.uid()
+  │                                                    ^^^^^^^^^^
+  │                                                    UUID value
+  │
+  ├─ RLS Policy triggers:
+  │   space_id IN (SELECT space_id FROM space_members WHERE ...)
+  │                                    ^^^^^^^^^^^^^^
+  │                                    Queries same table!
+  │
+  └─ ❌ FAILED: "infinite recursion detected in policy"
+
+
+AFTER (FIXED):
+================================================================================
+
+User A wants to share with "userb@example.com"
+  │
+  ├─ Flutter: Call email lookup function
+  │   supabase.rpc('get_user_id_by_email', {'email_address': 'userb@example.com'})
+  │   
+  ├─ Supabase Function:
+  │   SELECT id FROM auth.users WHERE email = 'userb@example.com'
+  │   Returns: "abc-123-def-456" (UUID)
+  │
+  ├─ Flutter: userId = "abc-123-def-456" (UUID)
+  │
+  ├─ Sync to Supabase:
+  │   INSERT INTO item_shares (user_id) VALUES ('abc-123-def-456')
+  │                                              ^^^^^^^^^^^^^^^^^^
+  │                                              ✅ Correct UUID type!
+  │
+  └─ ✅ SUCCESS: Share record created
+
+
+User B logs in and pulls data:
+  │
+  ├─ auth.uid() = "abc-123-def-456"
+  │
+  ├─ Query: SELECT * FROM item_shares WHERE user_id = 'abc-123-def-456'
+  │   Returns: [share record]
+  │
+  ├─ Query: SELECT * FROM items WHERE id IN (shared_item_ids)
+  │
+  ├─ RLS Policy checks (SIMPLE, NO RECURSION):
+  │   items_select_shared:
+  │     EXISTS (
+  │       SELECT 1 FROM item_shares 
+  │       WHERE item_shares.item_id = items.id 
+  │       AND item_shares.user_id = auth.uid()
+  │     )
+  │     ✅ No recursion - queries different table
+  │
+  └─ ✅ SUCCESS: User B sees shared items
+
+
+================================================================================
+DATABASE SCHEMA COMPARISON
+================================================================================
+
+BEFORE (Attempted):
+-------------------
+item_shares:
+  user_id: TEXT ← ❌ Breaks foreign key to auth.users(id)
+  
+space_members:
+  user_id: TEXT ← ❌ Breaks foreign key to auth.users(id)
+
+
+AFTER (Correct):
+----------------
+item_shares:
+  user_id: UUID ← ✅ Proper foreign key to auth.users(id)
+  
+space_members:
+  user_id: UUID ← ✅ Proper foreign key to auth.users(id)
+
+Helper Function:
+  get_user_id_by_email(email) → UUID ← ✅ Converts email to UUID
+
+
+================================================================================
+RLS POLICY COMPARISON
+================================================================================
+
+BEFORE (Recursive):
+-------------------
+CREATE POLICY "members_select" ON space_members
+USING (
+  user_id = auth.uid() OR
+  space_id IN (
+    SELECT space_id FROM space_members WHERE user_id = auth.uid()
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ❌ RECURSION: Policy queries its own table!
+  )
+);
+
+
+AFTER (Non-Recursive):
+----------------------
+CREATE POLICY "space_members_select" ON space_members
+USING (
+  user_id = auth.uid() OR
+  invited_by = auth.uid()
+  ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  ✅ SIMPLE: Only checks current row columns
+);
+
+CREATE POLICY "items_select_shared" ON items
+USING (
+  EXISTS (
+    SELECT 1 FROM item_shares 
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ✅ SAFE: Queries different table (item_shares, not items)
+    WHERE item_shares.item_id = items.id 
+    AND item_shares.user_id = auth.uid()
+  )
+);
+
+
+================================================================================
+DATA FLOW DIAGRAM
+================================================================================
+
+┌──────────────────────────────────────────────────────────────────────────┐
+│                          SHARING DATA FLOW                                │
+└──────────────────────────────────────────────────────────────────────────┘
+
+Step 1: User A Shares
+─────────────────────
+┌─────────────┐
+│  User A     │ "Share with userb@example.com"
+│  Flutter    │
+└──────┬──────┘
+       │
+       │ RPC: get_user_id_by_email('userb@example.com')
+       ▼
+┌─────────────┐
+│  Supabase   │ SELECT id FROM auth.users WHERE email = '...'
+│  Function   │ Returns: "uuid-b"
+└──────┬──────┘
+       │
+       │ userId = "uuid-b"
+       ▼
+┌─────────────┐
+│  Local      │ INSERT INTO isar.item_shares
+│  Isar DB    │   (item_id, user_id, permission)
+└──────┬──────┘   VALUES ('item-1', 'uuid-b', 'view')
+       │
+       │ Sync
+       ▼
+┌─────────────┐
+│  Supabase   │ INSERT INTO item_shares
+│  Database   │   (item_id, user_id, permission)
+└─────────────┘   VALUES ('item-1', 'uuid-b', 'view')
+
+
+Step 2: User B Receives
+────────────────────────
+┌─────────────┐
+│  User B     │ Logs in with "userb@example.com"
+│  Flutter    │ auth.uid() = "uuid-b"
+└──────┬──────┘
+       │
+       │ Pull sync
+       ▼
+┌─────────────┐
+│  Supabase   │ SELECT * FROM item_shares WHERE user_id = 'uuid-b'
+│  Database   │ Returns: [{item_id: 'item-1', permission: 'view'}]
+└──────┬──────┘
+       │
+       │ Fetch items
+       ▼
+┌─────────────┐
+│  Supabase   │ SELECT * FROM items WHERE id = 'item-1'
+│  Database   │ RLS Policy: ✅ Allowed (user_id in item_shares)
+└──────┬──────┘
+       │
+       │ Save locally
+       ▼
+┌─────────────┐
+│  Local      │ INSERT INTO isar.items (...)
+│  Isar DB    │
+└──────┬──────┘
+       │
+       │ Display
+       ▼
+┌─────────────┐
+│  User B     │ ✅ Sees shared item!
+│  UI         │
+└─────────────┘
+
+
+================================================================================
+KEY PRINCIPLES
+================================================================================
+
+1. ALWAYS use UUIDs for user references
+   ✅ user_id: UUID (foreign key to auth.users)
+   ❌ user_id: TEXT (breaks referential integrity)
+
+2. NEVER query same table in its own RLS policy
+   ✅ SELECT FROM other_table WHERE ...
+   ❌ SELECT FROM same_table WHERE ... (infinite recursion)
+
+3. Convert email→UUID at the application layer
+   ✅ Flutter calls get_user_id_by_email() before storing
+   ❌ Store email directly in UUID column
+
+4. Keep policies simple and direct
+   ✅ column = auth.uid() OR EXISTS (SELECT FROM other_table)
+   ❌ Complex nested subqueries to same table
+
+5. Test with actual user accounts
+   ✅ Sign up two users, test sharing between them
+   ❌ Assume it works without testing
+
+================================================================================

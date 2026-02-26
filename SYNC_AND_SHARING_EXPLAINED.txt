@@ -1,0 +1,261 @@
+================================================================================
+OPENLIST - SYNC AND SHARING MECHANISM EXPLAINED
+================================================================================
+
+================================================================================
+1. DATA FLOW ARCHITECTURE
+================================================================================
+
+The app uses a "Local-First" architecture:
+- All data is stored locally in Isar (offline-capable NoSQL database)
+- Supabase acts as the cloud backup and sync server
+- Users can work offline, changes sync when online
+
+================================================================================
+2. UPLOADING DATA TO SUPABASE (PUSH)
+================================================================================
+
+WHEN IT HAPPENS:
+- After every local write operation (create/update/delete)
+- When app starts (if online)
+- When device comes back online after being offline
+- Before user signs out
+
+HOW IT WORKS:
+1. User creates/edits a task or note
+2. Data is saved to Isar immediately (instant, no waiting)
+3. Item is marked with syncStatus = "pending"
+4. SyncManager.triggerSync() is called automatically
+5. SyncManager._pushToSupabase() runs:
+   - Queries all items with syncStatus = "pending"
+   - Converts each item to JSON format
+   - Calls supabase.from('items').upsert(data)
+   - If successful, marks item as syncStatus = "synced"
+   - If failed, keeps as "pending" for retry
+
+WHAT GETS UPLOADED:
+- Items (tasks/notes): id, title, content, type, dates, space_id, created_by
+- Blocks (checklist items): id, item_id, content, type, order
+- Item Shares: id, item_id, user_id (email), permission, shared_by
+- Space Members: id, space_id, user_id (email), role, invited_by
+
+================================================================================
+3. DOWNLOADING DATA FROM SUPABASE (PULL)
+================================================================================
+
+WHEN IT HAPPENS:
+- When app starts (if online)
+- Before pushing local changes (to avoid conflicts)
+- When device comes back online
+
+HOW IT WORKS:
+1. SyncManager._pullFromSupabase() runs
+2. Fetches items in 3 categories:
+   
+   A. OWNED ITEMS:
+      SELECT * FROM items WHERE created_by = current_user_id
+   
+   B. SHARED ITEMS (by individual item):
+      SELECT * FROM items WHERE id IN (
+        SELECT item_id FROM item_shares 
+        WHERE user_id = current_user_email OR user_id = current_user_id
+      )
+   
+   C. SPACE-SHARED ITEMS (by space membership):
+      SELECT * FROM items WHERE space_id IN (
+        SELECT space_id FROM space_members 
+        WHERE user_id = current_user_email OR user_id = current_user_id
+      )
+
+3. All fetched items are saved to local Isar
+4. Marked as syncStatus = "synced"
+5. UI automatically updates (Riverpod streams)
+
+================================================================================
+4. SHARING MECHANISM
+================================================================================
+
+EMAIL-BASED SHARING:
+- Users share by entering recipient's email address
+- No need to look up user IDs
+- Recipient sees shared items when they log in with that email
+
+SHARING FLOW:
+1. User A clicks "Share" button on a task/note
+2. Enters User B's email: "userb@example.com"
+3. Selects permission: "Can view" or "Can edit"
+4. Share record created in local Isar:
+   - item_id: "abc-123"
+   - user_id: "userb@example.com" (email as TEXT)
+   - permission: "view" or "edit"
+   - shared_by: User A's UUID
+   - syncStatus: "pending"
+5. SyncManager syncs to Supabase item_shares table
+6. User B logs in with "userb@example.com"
+7. Pull query finds shares WHERE user_id = "userb@example.com"
+8. User B sees the shared item in their app
+
+PERMISSION LEVELS:
+- "view": Can see the item, cannot edit
+- "edit": Can see and modify the item
+
+================================================================================
+5. ROW LEVEL SECURITY (RLS) POLICIES
+================================================================================
+
+RLS ensures users can only access their own data and shared data.
+
+ITEMS TABLE POLICIES:
+- Users can view their own items: created_by = auth.uid()
+- Users can view individually shared items: id IN (SELECT item_id FROM item_shares WHERE user_id = auth.email())
+- Users can view space-shared items: space_id IN (SELECT space_id FROM space_members WHERE user_id = auth.email())
+
+ITEM_SHARES TABLE POLICIES:
+- Users can view shares for items they own
+- Users can create/update/delete shares for items they own
+- Users can view shares where they are the recipient
+
+SPACE_MEMBERS TABLE POLICIES:
+- Users can view memberships where they are a member
+- Space owners can add/remove members
+
+================================================================================
+6. THE INFINITE RECURSION ERROR
+================================================================================
+
+ERROR MESSAGE:
+"PostgrestException(message: infinite recursion detected in policy for 
+relation 'space_members', code: 42P17)"
+
+WHAT IT MEANS:
+A Row Level Security (RLS) policy is calling itself in a loop.
+
+WHY IT HAPPENS:
+When a policy on table A references table B, and table B's policy references 
+table A, it creates a circular dependency:
+
+Example of BAD policy (causes recursion):
+  CREATE POLICY "members_select" ON space_members
+  USING (
+    user_id = auth.uid() OR
+    space_id IN (
+      SELECT space_id FROM space_members WHERE user_id = auth.uid()
+    )
+  );
+
+The problem: The policy queries space_members, which triggers the same policy 
+again, which queries space_members again... infinite loop!
+
+HOW TO FIX:
+Use simple, non-recursive policies:
+
+  CREATE POLICY "members_select" ON space_members
+  USING (
+    user_id = auth.uid()::text OR
+    user_id = auth.email() OR
+    invited_by = auth.uid()::text OR
+    invited_by = auth.email()
+  );
+
+This policy only checks the current row's columns, no subqueries to the same 
+table.
+
+CURRENT STATUS:
+The fix_sharing_schema_final.sql script should resolve this by:
+1. Dropping ALL policies on ALL tables
+2. Changing user_id columns from UUID to TEXT (to support email-based sharing)
+3. Recreating policies with simple, non-recursive logic
+
+================================================================================
+7. MULTI-USER DATA ISOLATION
+================================================================================
+
+PROBLEM SOLVED:
+Previously, when User A logged out and User B logged in on the same device, 
+User B could see User A's data because Isar stores data locally.
+
+SOLUTION:
+1. On sign out, sync all pending changes to Supabase first
+2. Wait 5 seconds for sync to complete
+3. Call IsarService.clearAllData() to wipe local database
+4. User B logs in with clean slate
+5. Pull downloads only User B's data from Supabase
+
+CODE LOCATION:
+lib/features/auth/data/auth_service.dart - signOut() method
+
+================================================================================
+8. SYNC STATUS INDICATOR
+================================================================================
+
+VISUAL FEEDBACK:
+- Small toast in bottom-right corner
+- Shows "Syncing..." with spinner during upload/download
+- Shows "Synced ✓" when complete
+- Shows "Sync failed ✗" on error
+- Auto-hides after 2-3 seconds
+
+CODE LOCATION:
+- lib/core/providers/sync_provider.dart (state management)
+- lib/core/widgets/sync_indicator.dart (UI component)
+- lib/data/sync/sync_manager.dart (calls onSyncStatusChanged callback)
+
+================================================================================
+9. TROUBLESHOOTING CHECKLIST
+================================================================================
+
+IF SHARING DOESN'T WORK:
+□ Run fix_sharing_schema_final.sql in Supabase SQL Editor
+□ Verify column types are TEXT: 
+  SELECT column_name, data_type FROM information_schema.columns 
+  WHERE table_name = 'item_shares' AND column_name = 'user_id';
+□ Check for infinite recursion errors in logs
+□ Verify RLS policies exist:
+  SELECT * FROM pg_policies WHERE tablename IN ('items', 'item_shares');
+□ Test with two different email accounts
+□ Check sync logs for "Sharing pull error"
+
+IF DATA DOESN'T SYNC:
+□ Check internet connectivity
+□ Look for "📤 Pushing X items" in logs
+□ Look for "📥 Fetched X items" in logs
+□ Verify Supabase credentials in .env file
+□ Check if items are marked as "pending" in Isar
+□ Manually trigger sync by restarting app
+
+IF WRONG USER'S DATA APPEARS:
+□ Sign out completely
+□ Verify clearAllData() is called on sign out
+□ Sign in with correct account
+□ Wait for pull to complete
+□ Check created_by field matches current user ID
+
+================================================================================
+10. KEY FILES REFERENCE
+================================================================================
+
+SYNC LOGIC:
+- lib/data/sync/sync_manager.dart (main sync orchestration)
+- lib/data/repositories/item_repository.dart (local Isar operations)
+- lib/data/repositories/sharing_repository.dart (sharing operations)
+
+MODELS:
+- lib/data/models/item_model.dart (tasks/notes)
+- lib/data/models/item_share_model.dart (sharing records)
+- lib/data/models/space_member_model.dart (space collaboration)
+
+DATABASE:
+- lib/data/local/isar_service.dart (local database)
+- supabase_schema.sql (cloud database schema)
+- supabase_sharing_schema.sql (sharing tables schema)
+
+UI:
+- lib/features/sharing/presentation/share_dialog.dart (share UI)
+- lib/core/widgets/sync_indicator.dart (sync status toast)
+
+AUTH:
+- lib/features/auth/data/auth_service.dart (sign in/out with data clearing)
+
+================================================================================
+END OF DOCUMENT
+================================================================================
