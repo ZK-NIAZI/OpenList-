@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -36,6 +37,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   // Use ValueNotifier for better performance (no setState rebuilds)
   final ValueNotifier<List<BlockModel>> _blocksNotifier = ValueNotifier([]);
   final ValueNotifier<List<ItemModel>> _subTasksNotifier = ValueNotifier([]);
+  
+  // Debounce timer for text input
+  Timer? _debounceTimer;
+  final Map<String, String> _pendingBlockUpdates = {};
   
   ItemModel? _currentItem;
   ItemModel? _parentItem;
@@ -92,6 +97,29 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     }
   }
 
+  // Debounced block update - waits 500ms after last keystroke before saving
+  void _debouncedBlockUpdate(BlockModel block, String value) {
+    // Store the pending update
+    _pendingBlockUpdates[block.blockId] = value;
+    
+    // Cancel existing timer
+    _debounceTimer?.cancel();
+    
+    // Start new timer
+    _debounceTimer = Timer(const Duration(milliseconds: 500), () {
+      // Apply all pending updates
+      for (final entry in _pendingBlockUpdates.entries) {
+        final blockToUpdate = _blocksNotifier.value.firstWhere(
+          (b) => b.blockId == entry.key,
+          orElse: () => block, // fallback to current block
+        );
+        blockToUpdate.content = entry.value;
+        _repository.updateBlock(blockToUpdate);
+      }
+      _pendingBlockUpdates.clear();
+    });
+  }
+
   void _loadBlocks() {
     if (_currentItem == null) return;
     
@@ -145,6 +173,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _titleController.dispose();
     _blocksNotifier.dispose();
     _subTasksNotifier.dispose();
@@ -346,7 +375,13 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                       valueListenable: _blocksNotifier,
                       builder: (context, blocks, child) {
                         return Column(
-                          children: blocks.map((block) => _buildBlock(block)).toList(),
+                          children: blocks.map((block) => 
+                            // Add key to prevent unnecessary rebuilds
+                            KeyedSubtree(
+                              key: ValueKey(block.id),
+                              child: _buildBlock(block),
+                            )
+                          ).toList(),
                         );
                       },
                     ),
@@ -492,8 +527,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         ),
         maxLines: null,
         onChanged: (value) {
-          block.content = value;
-          _repository.updateBlock(block);
+          block.content = value; // Update locally immediately for smooth typing
+          _debouncedBlockUpdate(block, value); // Debounced save to database
         },
       ),
     );
@@ -520,8 +555,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
           ),
         ),
         onChanged: (value) {
-          block.content = value;
-          _repository.updateBlock(block);
+          block.content = value; // Update locally immediately for smooth typing
+          _debouncedBlockUpdate(block, value); // Debounced save to database
         },
       ),
     );
@@ -536,10 +571,9 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         children: [
           GestureDetector(
             onTap: () {
-              setState(() {
-                block.isChecked = !block.isChecked;
-              });
+              block.isChecked = !block.isChecked;
               _repository.updateBlock(block);
+              // No need for setState - ValueListenableBuilder will update automatically
             },
             child: Container(
               width: 24,
@@ -574,8 +608,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 hintText: 'Checklist item...',
               ),
               onChanged: (value) {
-                block.content = value;
-                _repository.updateBlock(block);
+                block.content = value; // Update locally immediately for smooth typing
+                _debouncedBlockUpdate(block, value); // Debounced save to database
               },
             ),
           ),
@@ -622,8 +656,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                 hintText: 'Bullet point...',
               ),
               onChanged: (value) {
-                block.content = value;
-                _repository.updateBlock(block);
+                block.content = value; // Update locally immediately for smooth typing
+                _debouncedBlockUpdate(block, value); // Debounced save to database
               },
             ),
           ),
@@ -868,19 +902,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         return;
       }
 
-      // Extract with AI
+      // Extract multiple tasks with AI
       final service = AIExtractionService(apiKey);
-      final extraction = await service.extractTask(fullText);
+      final extractions = await service.extractMultipleTasks(fullText);
 
-      if (extraction == null) {
-        if (mounted) {
-          _showError('Could not extract tasks. Try adding more specific task descriptions.');
-        }
-        return;
-      }
-
-      // Check if it's actually a task
-      if (!extraction.isTask) {
+      if (extractions.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -896,44 +922,85 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         return;
       }
 
-      // Create the task
-      final taskItem = await _repository.createItem(
-        title: extraction.title,
-        type: ItemType.task,
-        dueDate: extraction.dueDate,
-        reminderAt: extraction.reminderAt ?? (extraction.dueDate != null 
-            ? DateParser.calculateReminderTime(extraction.dueDate!, minutesBefore: reminderOffset)
-            : null),
-      );
+      // Create all extracted tasks
+      int createdCount = 0;
+      int skippedCount = 0;
+      
+      for (final extraction in extractions) {
+        // Check for duplicates: same title and same due date
+        final existingTasks = await _repository.searchItems(extraction.title);
+        
+        bool isDuplicate = false;
+        for (final existing in existingTasks) {
+          // Check if title matches (case-insensitive) and due date matches
+          if (existing.title.toLowerCase().trim() == extraction.title.toLowerCase().trim() &&
+              existing.type == ItemType.task) {
+            // Check if due dates match (both null or same date)
+            if ((existing.dueDate == null && extraction.dueDate == null) ||
+                (existing.dueDate != null && extraction.dueDate != null &&
+                 existing.dueDate!.year == extraction.dueDate!.year &&
+                 existing.dueDate!.month == extraction.dueDate!.month &&
+                 existing.dueDate!.day == extraction.dueDate!.day)) {
+              isDuplicate = true;
+              print('⏭️  Skipping duplicate task: ${extraction.title}');
+              break;
+            }
+          }
+        }
+        
+        if (isDuplicate) {
+          skippedCount++;
+          continue;
+        }
+        
+        // Create the task
+        final taskItem = await _repository.createItem(
+          title: extraction.title,
+          type: ItemType.task,
+          dueDate: extraction.dueDate,
+          reminderAt: extraction.reminderAt ?? (extraction.dueDate != null 
+              ? DateParser.calculateReminderTime(extraction.dueDate!, minutesBefore: reminderOffset)
+              : null),
+        );
 
-      print('📝 AI extracted task: ${taskItem.title}');
+        print('📝 AI extracted task: ${taskItem.title}');
 
-      // Create a block that references this task
-      await _repository.createBlock(
-        itemId: _currentItem!.itemId,
-        type: BlockType.subTask,
-        content: taskItem.itemId,
-        orderIndex: _blocksNotifier.value.length,
-      );
+        // Create a block that references this task
+        await _repository.createBlock(
+          itemId: _currentItem!.itemId,
+          type: BlockType.subTask,
+          content: taskItem.itemId,
+          orderIndex: _blocksNotifier.value.length + createdCount,
+        );
 
-      // Copy shares from note to task
-      await _copySharesFromNoteToTask(_currentItem!.itemId, taskItem.itemId);
+        // Copy shares from note to task
+        await _copySharesFromNoteToTask(_currentItem!.itemId, taskItem.itemId);
+        
+        createdCount++;
+      }
 
       // Show success message
       if (mounted) {
-        final keywords = extraction.detectedKeywords.take(3).join(', ');
+        final message = createdCount > 0
+            ? '✨ Extracted $createdCount task${createdCount > 1 ? 's' : ''}${skippedCount > 0 ? ' ($skippedCount duplicate${skippedCount > 1 ? 's' : ''} skipped)' : ''}'
+            : skippedCount > 0
+                ? 'All tasks already exist ($skippedCount duplicate${skippedCount > 1 ? 's' : ''} skipped)'
+                : 'No new tasks extracted';
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
-                const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('✨ Task extracted: "${extraction.title}"${keywords.isNotEmpty ? " ($keywords)" : ""}'),
+                Icon(
+                  createdCount > 0 ? Icons.auto_awesome : Icons.info_outline,
+                  color: Colors.white,
+                  size: 20,
                 ),
+                const SizedBox(width: 8),
+                Expanded(child: Text(message)),
               ],
             ),
-            backgroundColor: AppColors.success,
+            backgroundColor: createdCount > 0 ? AppColors.success : AppColors.warning,
             duration: const Duration(seconds: 3),
           ),
         );
@@ -1049,7 +1116,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
                   GestureDetector(
                     onTap: () async {
                       await _repository.toggleComplete(taskItem.id);
-                      setState(() {}); // Rebuild to show updated state
+                      // No need for setState - ValueListenableBuilder will update automatically
                     },
                     child: Container(
                       width: 24,

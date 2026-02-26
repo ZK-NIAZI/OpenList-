@@ -10,6 +10,7 @@ import 'package:openlist/features/task/presentation/task_detail_screen.dart';
 import 'package:openlist/features/settings/presentation/settings_screen.dart';
 import 'package:openlist/features/search/presentation/search_screen.dart';
 import 'package:openlist/features/upcoming/presentation/upcoming_screen.dart';
+import 'package:openlist/features/friends/presentation/friends_screen.dart';
 
 // Providers
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -122,6 +123,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         path: '/upcoming',
         name: 'upcoming',
         builder: (context, state) => const UpcomingScreen(),
+      ),
+      
+      // Friends
+      GoRoute(
+        path: '/friends',
+        name: 'friends',
+        builder: (context, state) => const FriendsScreen(),
       ),
     ],
     errorBuilder: (context, state) => Scaffold(

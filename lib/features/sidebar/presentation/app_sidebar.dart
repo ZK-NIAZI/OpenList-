@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:openlist/core/theme/theme.dart';
 import 'package:openlist/core/widgets/widgets.dart';
 import 'package:openlist/core/providers/navigation_provider.dart';
 import 'package:openlist/features/task/presentation/quick_add_dialog.dart';
 import 'package:openlist/core/providers/space_provider.dart';
 import 'package:openlist/data/repositories/item_repository.dart';
+import 'package:openlist/features/auth/providers/auth_provider.dart';
+import 'package:openlist/features/auth/providers/profile_provider.dart';
 
 class AppSidebar extends ConsumerStatefulWidget {
   const AppSidebar({super.key});
@@ -19,6 +22,21 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final currentUser = ref.watch(currentUserProvider);
+    final profileAsync = ref.watch(profileNotifierProvider);
+    
+    // Get user display name and initials from profile
+    final email = currentUser?.email ?? '';
+    final displayName = profileAsync.when(
+      data: (profile) => profile?.displayName ?? email.split('@')[0],
+      loading: () => email.split('@')[0],
+      error: (_, __) => email.split('@')[0],
+    );
+    final initials = displayName.isNotEmpty 
+        ? (displayName.length >= 2 
+            ? '${displayName[0]}${displayName[1]}'.toUpperCase() 
+            : displayName[0].toUpperCase())
+        : 'U';
     
     return Drawer(
       child: Container(
@@ -71,19 +89,6 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
                   children: [
                     _buildMenuItem(
                       context,
-                      icon: Icons.inbox,
-                      label: 'Inbox',
-                      badge: '0',
-                      isActive: false,
-                      onTap: () {
-                        Navigator.pop(context);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Inbox coming soon!')),
-                        );
-                      },
-                    ),
-                    _buildMenuItem(
-                      context,
                       icon: Icons.today,
                       label: 'Today',
                       isActive: false,
@@ -104,12 +109,12 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
                     ),
                     _buildMenuItem(
                       context,
-                      icon: Icons.note,
-                      label: 'Notes',
+                      icon: Icons.people,
+                      label: 'Friends',
                       isActive: false,
                       onTap: () {
                         Navigator.pop(context);
-                        context.push('/notes');
+                        context.push('/friends');
                       },
                     ),
                     
@@ -179,10 +184,10 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
                         color: AppColors.primaryLight,
                         shape: BoxShape.circle,
                       ),
-                      child: const Center(
+                      child: Center(
                         child: Text(
-                          'JD',
-                          style: TextStyle(
+                          initials,
+                          style: const TextStyle(
                             color: AppColors.primary,
                             fontWeight: FontWeight.bold,
                           ),
@@ -191,25 +196,13 @@ class _AppSidebarState extends ConsumerState<AppSidebar> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'John Doe',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: isDarkMode ? AppColors.textPrimaryDark : Colors.black87,
-                            ),
-                          ),
-                          const Text(
-                            'PRO PLAN',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: AppColors.primary,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        displayName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: isDarkMode ? AppColors.textPrimaryDark : Colors.black87,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     IconButton(

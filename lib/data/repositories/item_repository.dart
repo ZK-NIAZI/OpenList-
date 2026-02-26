@@ -790,6 +790,15 @@ class ItemRepository {
         .watch(fireImmediately: true);
   }
 
+  // Get all blocks for an item (non-stream version)
+  Future<List<BlockModel>> getBlocks(String itemId) async {
+    final isar = await _isarService.db;
+    return await isar.blockModels
+        .filter()
+        .itemIdEqualTo(itemId)
+        .findAll();
+  }
+
   Future<void> updateBlock(BlockModel block) async {
     final isar = await _isarService.db;
     

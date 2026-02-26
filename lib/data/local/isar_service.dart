@@ -6,6 +6,8 @@ import 'package:openlist/data/models/space_model.dart';
 import 'package:openlist/data/models/item_share_model.dart';
 import 'package:openlist/data/models/space_member_model.dart';
 import 'package:openlist/data/models/notification_model.dart';
+import 'package:openlist/data/models/friendship_model.dart';
+import 'package:openlist/data/models/user_model.dart';
 
 class IsarService {
   static IsarService? _instance;
@@ -42,6 +44,8 @@ class IsarService {
         ItemShareModelSchema,
         SpaceMemberModelSchema,
         NotificationModelSchema,
+        FriendshipModelSchema,
+        UserModelSchema,
       ],
       directory: dir.path,
       name: 'openlist_db',

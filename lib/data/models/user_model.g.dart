@@ -32,30 +32,40 @@ const UserModelSchema = CollectionSchema(
       name: r'displayName',
       type: IsarType.string,
     ),
-    r'fcmToken': PropertySchema(
+    r'email': PropertySchema(
       id: 3,
+      name: r'email',
+      type: IsarType.string,
+    ),
+    r'fcmToken': PropertySchema(
+      id: 4,
       name: r'fcmToken',
       type: IsarType.string,
     ),
+    r'initials': PropertySchema(
+      id: 5,
+      name: r'initials',
+      type: IsarType.string,
+    ),
     r'plan': PropertySchema(
-      id: 4,
+      id: 6,
       name: r'plan',
       type: IsarType.byte,
       enumMap: _UserModelplanEnumValueMap,
     ),
     r'syncStatus': PropertySchema(
-      id: 5,
+      id: 7,
       name: r'syncStatus',
       type: IsarType.byte,
       enumMap: _UserModelsyncStatusEnumValueMap,
     ),
     r'updatedAt': PropertySchema(
-      id: 6,
+      id: 8,
       name: r'updatedAt',
       type: IsarType.dateTime,
     ),
     r'userId': PropertySchema(
-      id: 7,
+      id: 9,
       name: r'userId',
       type: IsarType.string,
     )
@@ -101,12 +111,14 @@ int _userModelEstimateSize(
     }
   }
   bytesCount += 3 + object.displayName.length * 3;
+  bytesCount += 3 + object.email.length * 3;
   {
     final value = object.fcmToken;
     if (value != null) {
       bytesCount += 3 + value.length * 3;
     }
   }
+  bytesCount += 3 + object.initials.length * 3;
   bytesCount += 3 + object.userId.length * 3;
   return bytesCount;
 }
@@ -120,11 +132,13 @@ void _userModelSerialize(
   writer.writeString(offsets[0], object.avatarUrl);
   writer.writeDateTime(offsets[1], object.createdAt);
   writer.writeString(offsets[2], object.displayName);
-  writer.writeString(offsets[3], object.fcmToken);
-  writer.writeByte(offsets[4], object.plan.index);
-  writer.writeByte(offsets[5], object.syncStatus.index);
-  writer.writeDateTime(offsets[6], object.updatedAt);
-  writer.writeString(offsets[7], object.userId);
+  writer.writeString(offsets[3], object.email);
+  writer.writeString(offsets[4], object.fcmToken);
+  writer.writeString(offsets[5], object.initials);
+  writer.writeByte(offsets[6], object.plan.index);
+  writer.writeByte(offsets[7], object.syncStatus.index);
+  writer.writeDateTime(offsets[8], object.updatedAt);
+  writer.writeString(offsets[9], object.userId);
 }
 
 UserModel _userModelDeserialize(
@@ -136,17 +150,18 @@ UserModel _userModelDeserialize(
   final object = UserModel(
     avatarUrl: reader.readStringOrNull(offsets[0]),
     displayName: reader.readString(offsets[2]),
-    fcmToken: reader.readStringOrNull(offsets[3]),
+    email: reader.readString(offsets[3]),
+    fcmToken: reader.readStringOrNull(offsets[4]),
     id: id,
-    plan: _UserModelplanValueEnumMap[reader.readByteOrNull(offsets[4])] ??
+    plan: _UserModelplanValueEnumMap[reader.readByteOrNull(offsets[6])] ??
         UserPlan.free,
     syncStatus:
-        _UserModelsyncStatusValueEnumMap[reader.readByteOrNull(offsets[5])] ??
+        _UserModelsyncStatusValueEnumMap[reader.readByteOrNull(offsets[7])] ??
             SyncStatus.synced,
-    userId: reader.readString(offsets[7]),
+    userId: reader.readString(offsets[9]),
   );
   object.createdAt = reader.readDateTime(offsets[1]);
-  object.updatedAt = reader.readDateTime(offsets[6]);
+  object.updatedAt = reader.readDateTime(offsets[8]);
   return object;
 }
 
@@ -164,16 +179,20 @@ P _userModelDeserializeProp<P>(
     case 2:
       return (reader.readString(offset)) as P;
     case 3:
-      return (reader.readStringOrNull(offset)) as P;
+      return (reader.readString(offset)) as P;
     case 4:
+      return (reader.readStringOrNull(offset)) as P;
+    case 5:
+      return (reader.readString(offset)) as P;
+    case 6:
       return (_UserModelplanValueEnumMap[reader.readByteOrNull(offset)] ??
           UserPlan.free) as P;
-    case 5:
+    case 7:
       return (_UserModelsyncStatusValueEnumMap[reader.readByteOrNull(offset)] ??
           SyncStatus.synced) as P;
-    case 6:
+    case 8:
       return (reader.readDateTime(offset)) as P;
-    case 7:
+    case 9:
       return (reader.readString(offset)) as P;
     default:
       throw IsarError('Unknown property with id $propertyId');
@@ -729,6 +748,136 @@ extension UserModelQueryFilter
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'email',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'email',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'email',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'email',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> emailIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'email',
+        value: '',
+      ));
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QAfterFilterCondition> fcmTokenIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -926,6 +1075,137 @@ extension UserModelQueryFilter
         includeLower: includeLower,
         upper: upper,
         includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsEqualTo(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsGreaterThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsLessThan(
+    String value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsBetween(
+    String lower,
+    String upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'initials',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsContains(
+      String value,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'initials',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsMatches(
+      String pattern,
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'initials',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition> initialsIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'initials',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterFilterCondition>
+      initialsIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'initials',
+        value: '',
       ));
     });
   }
@@ -1265,6 +1545,18 @@ extension UserModelQuerySortBy on QueryBuilder<UserModel, UserModel, QSortBy> {
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByEmail() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'email', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByEmailDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'email', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByFcmToken() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fcmToken', Sort.asc);
@@ -1274,6 +1566,18 @@ extension UserModelQuerySortBy on QueryBuilder<UserModel, UserModel, QSortBy> {
   QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByFcmTokenDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fcmToken', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByInitials() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'initials', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> sortByInitialsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'initials', Sort.desc);
     });
   }
 
@@ -1364,6 +1668,18 @@ extension UserModelQuerySortThenBy
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByEmail() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'email', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByEmailDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'email', Sort.desc);
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByFcmToken() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'fcmToken', Sort.asc);
@@ -1385,6 +1701,18 @@ extension UserModelQuerySortThenBy
   QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'id', Sort.desc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByInitials() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'initials', Sort.asc);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QAfterSortBy> thenByInitialsDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'initials', Sort.desc);
     });
   }
 
@@ -1459,10 +1787,24 @@ extension UserModelQueryWhereDistinct
     });
   }
 
+  QueryBuilder<UserModel, UserModel, QDistinct> distinctByEmail(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'email', caseSensitive: caseSensitive);
+    });
+  }
+
   QueryBuilder<UserModel, UserModel, QDistinct> distinctByFcmToken(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'fcmToken', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<UserModel, UserModel, QDistinct> distinctByInitials(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'initials', caseSensitive: caseSensitive);
     });
   }
 
@@ -1518,9 +1860,21 @@ extension UserModelQueryProperty
     });
   }
 
+  QueryBuilder<UserModel, String, QQueryOperations> emailProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'email');
+    });
+  }
+
   QueryBuilder<UserModel, String?, QQueryOperations> fcmTokenProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'fcmToken');
+    });
+  }
+
+  QueryBuilder<UserModel, String, QQueryOperations> initialsProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'initials');
     });
   }
 

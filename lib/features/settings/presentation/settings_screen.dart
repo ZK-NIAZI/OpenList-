@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:openlist/core/theme/theme.dart';
 import 'package:openlist/features/auth/providers/auth_provider.dart';
+import 'package:openlist/features/auth/providers/profile_provider.dart';
 import 'package:openlist/core/providers/theme_provider.dart';
 import 'package:openlist/data/sync/sync_manager.dart';
 import 'package:openlist/features/settings/presentation/ai_settings_screen.dart';
@@ -97,9 +98,160 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  void _showManageProfileDialog(BuildContext context, bool isDarkMode, dynamic currentUser, AsyncValue profileAsync) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: isDarkMode ? AppColors.surfaceDark : Colors.white,
+        title: Text(
+          'Manage Profile',
+          style: GoogleFonts.inter(
+            fontWeight: FontWeight.w700,
+            color: isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary,
+          ),
+        ),
+        content: profileAsync.when(
+          data: (profile) {
+            final email = currentUser?.email ?? 'N/A';
+            final displayName = profile?.displayName ?? email.split('@')[0];
+            final plan = 'Free'; // Default plan, can be extended later
+            
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildProfileInfoRow(
+                  isDarkMode: isDarkMode,
+                  label: 'Name',
+                  value: displayName,
+                  icon: Icons.person,
+                ),
+                const SizedBox(height: 16),
+                _buildProfileInfoRow(
+                  isDarkMode: isDarkMode,
+                  label: 'Email',
+                  value: email,
+                  icon: Icons.email,
+                ),
+                const SizedBox(height: 16),
+                _buildProfileInfoRow(
+                  isDarkMode: isDarkMode,
+                  label: 'Plan',
+                  value: plan,
+                  icon: Icons.workspace_premium,
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      try {
+                        await ref.read(profileNotifierProvider.notifier).sendPasswordReset(email);
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Password reset email sent to $email'),
+                              backgroundColor: AppColors.success,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: AppColors.danger,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.lock_reset),
+                    label: const Text('Reset Password'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+          loading: () => const Center(
+            child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ),
+          ),
+          error: (error, _) => Text(
+            'Error loading profile: $error',
+            style: GoogleFonts.inter(
+              color: AppColors.danger,
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProfileInfoRow({
+    required bool isDarkMode,
+    required String label,
+    required String value,
+    required IconData icon,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.primaryLight,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: AppColors.primary, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: GoogleFonts.inter(
+                  fontSize: 12,
+                  color: isDarkMode ? AppColors.textMutedDark : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                value,
+                style: GoogleFonts.inter(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDarkMode = ref.watch(themeModeProvider);
+    final currentUser = ref.watch(currentUserProvider);
+    final profileAsync = ref.watch(profileNotifierProvider);
     
     return Scaffold(
       backgroundColor: isDarkMode ? AppColors.bgScaffoldDark : AppColors.bgScaffold,
@@ -304,16 +456,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     icon: Icons.person_outline,
                     iconColor: AppColors.success,
                     iconBg: AppColors.successLight,
-                    title: 'Profile',
-                    subtitle: 'Manage your account details',
+                    title: 'Manage Profile',
+                    subtitle: 'View your account details',
                     trailing: Icon(
                       Icons.chevron_right, 
                       color: isDarkMode ? AppColors.textMutedDark : AppColors.textMuted,
                     ),
                     onTap: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Profile page coming soon!')),
-                      );
+                      _showManageProfileDialog(context, isDarkMode, currentUser, profileAsync);
                     },
                     isDarkMode: isDarkMode,
                   ),

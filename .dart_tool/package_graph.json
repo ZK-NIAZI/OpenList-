@@ -23,6 +23,7 @@
         "lottie",
         "path",
         "path_provider",
+        "provider",
         "riverpod_annotation",
         "shared_preferences",
         "shimmer",
@@ -338,6 +339,15 @@
         "flutter_web_plugins",
         "logging",
         "meta"
+      ]
+    },
+    {
+      "name": "provider",
+      "version": "6.1.5+1",
+      "dependencies": [
+        "collection",
+        "flutter",
+        "nested"
       ]
     },
     {
@@ -1176,6 +1186,13 @@
       "name": "ffi",
       "version": "2.2.0",
       "dependencies": []
+    },
+    {
+      "name": "nested",
+      "version": "1.0.0",
+      "dependencies": [
+        "flutter"
+      ]
     },
     {
       "name": "riverpod",

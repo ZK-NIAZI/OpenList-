@@ -8,6 +8,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:openlist/core/theme/theme.dart';
 import 'package:openlist/data/local/isar_service.dart';
 import 'package:openlist/data/models/notification_model.dart';
+import 'package:openlist/data/models/item_model.dart';
+import 'package:openlist/data/repositories/item_repository.dart';
 import 'package:openlist/data/sync/sync_manager.dart';
 import 'package:timeago/timeago.dart' as timeago;
 
@@ -157,13 +159,34 @@ class _AlertsScreenState extends ConsumerState<AlertsScreen> {
     }
   }
 
-  void _onNotificationTap(NotificationModel notification) {
-    _markAsRead(notification);
+  Future<void> _onNotificationTap(NotificationModel notification) async {
+    // Mark as read
+    await _markAsRead(notification);
     
     // Navigate to the item if it exists
-    if (notification.itemId != null) {
-      // Find the item's local ID and navigate
-      // For now, just mark as read
+    if (notification.itemId != null && mounted) {
+      try {
+        // Use ItemRepository to find the item
+        final itemRepo = ItemRepository();
+        final item = await itemRepo.getItemByItemId(notification.itemId!);
+        
+        if (item != null && mounted) {
+          // Navigate to task detail screen
+          context.push('/task/${item.id}');
+        } else {
+          // Item not found
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Item not found or has been deleted'),
+                backgroundColor: AppColors.warning,
+              ),
+            );
+          }
+        }
+      } catch (e) {
+        print('❌ Failed to navigate to item: $e');
+      }
     }
   }
 
