@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:openlist/core/theme/app_theme.dart';
 import 'package:openlist/core/router/app_router.dart';
 import 'package:openlist/core/providers/theme_provider.dart';
+import 'package:openlist/features/splash/presentation/splash_screen.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -18,9 +19,10 @@ class App extends ConsumerWidget {
       theme: isDarkMode ? AppTheme.darkTheme : AppTheme.lightTheme,
       routerConfig: router,
       builder: (context, child) {
+        // Show splash screen immediately while router initializes
         return Directionality(
           textDirection: TextDirection.ltr,
-          child: child ?? const SizedBox.shrink(),
+          child: child ?? const SplashScreen(),
         );
       },
     );

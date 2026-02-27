@@ -18,6 +18,9 @@ dependencies:
   # Navigation
   go_router: ^13.2.0
 
+  # app icon 
+  flutter_launcher_icons: ^0.14.4
+
   # Local Database
   isar: ^3.1.0+1
   isar_flutter_libs: ^3.1.0+1
@@ -67,3 +70,10 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/
+    - assets/config.json
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png" # Path to your image
+  min_sdk_android: 21 # Optional: ensures compatibility

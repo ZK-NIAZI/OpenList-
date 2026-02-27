@@ -129,36 +129,9 @@ class _SignupScreenState extends ConsumerState<SignupScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       // Logo
-                      Container(
-                        width: 64,
-                        height: 64,
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryDark,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: const Icon(
-                          Icons.checklist_rounded,
-                          color: Colors.white,
-                          size: 32,
-                        ),
-                      ),
-                      const SizedBox(height: AppDimensions.lg),
-                      
-                      // App Name
-                      Text(
-                        'OpenList',
-                        style: AppTypography.h1.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: AppDimensions.xs),
-                      
-                      // Tagline
-                      Text(
-                        'Collaborate. Create. Get it done.',
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textMuted,
-                        ),
+                      const OpenListBrandWidget(
+                        iconSize: 64,
+                        showTagline: true,
                       ),
                       const SizedBox(height: AppDimensions.xxxl),
                       

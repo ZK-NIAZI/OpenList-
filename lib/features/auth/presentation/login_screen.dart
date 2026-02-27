@@ -44,6 +44,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     try {
       final authService = ref.read(authServiceProvider);
+      
+      // Check if Supabase is initialized
+      if (!authService.isInitialized) {
+        throw Exception('Authentication service is not ready. Please restart the app.');
+      }
+      
       final response = await authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text,
@@ -55,6 +61,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         context.go('/dashboard');
       }
     } catch (e) {
+      print('❌ Login screen error: $e');
       if (mounted) {
         setState(() {
           _errorMessage = _getErrorMessage(e.toString());
@@ -65,14 +72,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   String _getErrorMessage(String error) {
+    print('🔍 Processing error message: $error');
+    
     if (error.contains('Invalid login credentials')) {
       return 'Invalid email or password';
     } else if (error.contains('Email not confirmed')) {
       return 'Please verify your email address';
-    } else if (error.contains('network')) {
+    } else if (error.contains('network') || error.contains('Network')) {
       return 'Network error. Please check your connection';
+    } else if (error.contains('not ready') || error.contains('not initialized')) {
+      return 'App is still loading. Please wait a moment and try again';
+    } else if (error.contains('timeout') || error.contains('Timeout')) {
+      return 'Request timed out. Please try again';
     }
-    return 'An error occurred. Please try again';
+    
+    // Return the actual error for debugging in release builds
+    return 'Error: ${error.length > 100 ? error.substring(0, 100) : error}';
   }
 
   @override

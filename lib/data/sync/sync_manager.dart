@@ -12,6 +12,7 @@ import 'package:openlist/data/models/notification_model.dart';
 import 'package:openlist/data/local/isar_service.dart';
 import 'package:openlist/core/models/sync_status.dart';
 import 'package:openlist/data/realtime/realtime_service.dart';
+import 'package:openlist/services/notification_service.dart';
 
 class SyncManager {
   static final SyncManager instance = SyncManager._();
@@ -65,6 +66,14 @@ class SyncManager {
       // Set up callbacks
       _realtimeService.onNewNotification = (notification) {
         print('📬 New notification received: ${notification.title}');
+        
+        // Show push notification on home screen
+        NotificationService().showCollaborationNotification(
+          title: notification.title,
+          message: notification.message,
+          itemId: notification.itemId,
+        );
+        
         // Forward to UI
         onNewNotification?.call(notification);
       };

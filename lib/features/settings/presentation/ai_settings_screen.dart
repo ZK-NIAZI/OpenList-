@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:openlist/core/theme/theme.dart';
+import 'package:openlist/core/config/app_config.dart';
 import 'package:openlist/core/providers/theme_provider.dart';
 import 'package:openlist/services/ai_extraction_service.dart';
 
@@ -15,12 +16,10 @@ class AISettingsScreen extends ConsumerStatefulWidget {
 
 class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
   final _storage = const FlutterSecureStorage();
-  final _apiKeyController = TextEditingController();
   
   bool _isEnabled = false;
   bool _isLoading = true;
   bool _isTesting = false;
-  bool _obscureApiKey = true;
   String _defaultReminderOffset = '30'; // minutes
 
   @override
@@ -29,23 +28,15 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
     _loadSettings();
   }
 
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadSettings() async {
     setState(() => _isLoading = true);
     
     try {
-      final apiKey = await _storage.read(key: 'gemini_api_key');
       final enabled = await _storage.read(key: 'ai_extraction_enabled');
       final reminderOffset = await _storage.read(key: 'ai_reminder_offset');
       
       if (mounted) {
         setState(() {
-          _apiKeyController.text = apiKey ?? '';
           _isEnabled = enabled == 'true';
           _defaultReminderOffset = reminderOffset ?? '30';
           _isLoading = false;
@@ -59,41 +50,11 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
     }
   }
 
-  Future<void> _saveApiKey() async {
-    final apiKey = _apiKeyController.text.trim();
-    
-    if (apiKey.isEmpty) {
-      _showError('Please enter an API key');
-      return;
-    }
-
-    try {
-      await _storage.write(key: 'gemini_api_key', value: apiKey);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('✅ API key saved securely'),
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    } catch (e) {
-      _showError('Failed to save API key: $e');
-    }
-  }
-
   Future<void> _testConnection() async {
-    final apiKey = _apiKeyController.text.trim();
-    
-    if (apiKey.isEmpty) {
-      _showError('Please enter an API key first');
-      return;
-    }
-
     setState(() => _isTesting = true);
 
     try {
-      final service = AIExtractionService(apiKey);
+      final service = AIExtractionService(AppConfig.geminiApiKey);
       final isConnected = await service.testConnection();
       
       if (mounted) {
@@ -108,7 +69,7 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
             ),
           );
         } else {
-          _showError('Connection failed. Please check your API key.');
+          _showError('Connection failed. Please try again.');
         }
       }
     } catch (e) {
@@ -120,11 +81,6 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
   }
 
   Future<void> _toggleEnabled(bool value) async {
-    if (value && _apiKeyController.text.trim().isEmpty) {
-      _showError('Please enter an API key first');
-      return;
-    }
-
     setState(() => _isEnabled = value);
     await _storage.write(key: 'ai_extraction_enabled', value: value.toString());
     
@@ -157,77 +113,6 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
         ),
       );
     }
-  }
-
-  void _showApiKeyHelp() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Get Your API Key',
-          style: GoogleFonts.inter(fontWeight: FontWeight.w700),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'To use AI extraction, you need a free Gemini API key:',
-              style: GoogleFonts.inter(),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              '1. Visit: aistudio.google.com/apikey',
-              style: GoogleFonts.inter(fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '2. Sign in with your Google account',
-              style: GoogleFonts.inter(),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '3. Click "Create API Key"',
-              style: GoogleFonts.inter(),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '4. Copy and paste it here',
-              style: GoogleFonts.inter(),
-            ),
-            const SizedBox(height: 16),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.primaryLight,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: AppColors.primary, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Free tier: 15 requests/minute',
-                      style: GoogleFonts.inter(
-                        fontSize: 13,
-                        color: AppColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -379,9 +264,9 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
 
             const SizedBox(height: 24),
 
-            // API Key Section
+            // Connection Test
             Text(
-              'API CONFIGURATION',
+              'CONNECTION',
               style: GoogleFonts.inter(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
@@ -402,93 +287,50 @@ class _AISettingsScreenState extends ConsumerState<AISettingsScreen> {
                 children: [
                   Row(
                     children: [
+                      const Icon(Icons.cloud_done, color: AppColors.primary, size: 20),
+                      const SizedBox(width: 8),
                       Text(
-                        'Gemini API Key',
+                        'Test AI Connection',
                         style: GoogleFonts.inter(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
                           color: isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary,
                         ),
                       ),
-                      const Spacer(),
-                      TextButton.icon(
-                        onPressed: _showApiKeyHelp,
-                        icon: const Icon(Icons.help_outline, size: 18),
-                        label: const Text('Get Key'),
-                        style: TextButton.styleFrom(
-                          foregroundColor: AppColors.primary,
-                        ),
-                      ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _apiKeyController,
-                    obscureText: _obscureApiKey,
-                    decoration: InputDecoration(
-                      hintText: 'Enter your Gemini API key',
-                      hintStyle: GoogleFonts.inter(
-                        color: isDarkMode ? AppColors.textMutedDark : AppColors.textMuted,
-                      ),
-                      filled: true,
-                      fillColor: isDarkMode ? AppColors.bgScaffoldDark : AppColors.bgScaffold,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(
-                          color: isDarkMode ? AppColors.borderDark : AppColors.border,
-                        ),
-                      ),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscureApiKey ? Icons.visibility : Icons.visibility_off,
-                          color: isDarkMode ? AppColors.textMutedDark : AppColors.textMuted,
-                        ),
-                        onPressed: () {
-                          setState(() => _obscureApiKey = !_obscureApiKey);
-                        },
-                      ),
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Verify that AI extraction is working properly',
                     style: GoogleFonts.inter(
-                      color: isDarkMode ? AppColors.textPrimaryDark : AppColors.textPrimary,
+                      fontSize: 13,
+                      color: isDarkMode ? AppColors.textMutedDark : AppColors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: _saveApiKey,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: const Text('Save Key'),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isTesting ? null : _testConnection,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _isTesting ? null : _testConnection,
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          child: _isTesting
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Text('Test'),
-                        ),
-                      ),
-                    ],
+                      child: _isTesting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : const Text('Test Connection'),
+                    ),
                   ),
                 ],
               ),

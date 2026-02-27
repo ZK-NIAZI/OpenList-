@@ -7,6 +7,7 @@ import 'package:openlist/data/models/item_model.dart';
 import 'package:openlist/data/models/block_model.dart';
 import 'package:openlist/core/models/sync_status.dart';
 import 'package:openlist/data/sync/sync_manager.dart';
+import 'package:openlist/services/notification_service.dart';
 
 class ItemRepository {
   final IsarService _isarService = IsarService.instance;
@@ -51,6 +52,11 @@ class ItemRepository {
       await isar.writeTxn(() async {
         await isar.itemModels.put(item);
       });
+      
+      // Schedule reminder if set
+      if (item.reminderAt != null) {
+        await NotificationService().scheduleReminder(item);
+      }
       
       // Trigger sync in background
       SyncManager.instance.triggerSync();
@@ -194,6 +200,14 @@ class ItemRepository {
         await isar.itemModels.put(item);
       });
       
+      // Update reminder notification
+      if (item.reminderAt != null && !item.isCompleted) {
+        await NotificationService().updateReminder(item);
+      } else {
+        // Cancel reminder if no longer needed
+        await NotificationService().cancelReminder(item.itemId);
+      }
+      
       SyncManager.instance.triggerSync();
     } catch (e, stackTrace) {
       debugPrint('Error updating item: $e');
@@ -215,6 +229,14 @@ class ItemRepository {
     await isar.writeTxn(() async {
       await isar.itemModels.put(item);
     });
+
+    // Cancel reminder if task is completed
+    if (item.isCompleted) {
+      await NotificationService().cancelReminder(item.itemId);
+    } else if (item.reminderAt != null) {
+      // Reschedule reminder if task is uncompleted
+      await NotificationService().scheduleReminder(item);
+    }
 
     SyncManager.instance.triggerSync();
   }
@@ -249,6 +271,9 @@ class ItemRepository {
       // Delete the item
       await isar.itemModels.delete(id);
     });
+    
+    // Cancel any scheduled reminder
+    await NotificationService().cancelReminder(itemId);
     
     print('✅ Item deleted from local Isar');
     

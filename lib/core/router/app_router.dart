@@ -17,16 +17,25 @@ final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/',
     redirect: (context, state) {
-      final session = Supabase.instance.client.auth.currentSession;
-      final isLoggedIn = session != null;
       final String location = state.matchedLocation;
       
-      print('📍 Redirect check - Location: $location, isLoggedIn: $isLoggedIn');
-      
-      // Allow splash screen
+      // Always allow splash screen - it will handle Supabase initialization
       if (location == '/') {
         return null;
       }
+      
+      // Try to check auth state, but handle case where Supabase isn't ready yet
+      bool isLoggedIn = false;
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+        isLoggedIn = session != null;
+      } catch (e) {
+        // Supabase not initialized yet - redirect to splash
+        print('⚠️ Supabase not ready, redirecting to splash');
+        return '/';
+      }
+      
+      print('📍 Redirect check - Location: $location, isLoggedIn: $isLoggedIn');
       
       // If not logged in, only allow access to login and signup
       if (!isLoggedIn) {

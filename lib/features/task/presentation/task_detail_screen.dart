@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:openlist/core/theme/theme.dart';
+import 'package:openlist/core/config/app_config.dart';
 import 'package:openlist/core/widgets/widgets.dart';
 import 'package:openlist/data/repositories/item_repository.dart';
 import 'package:openlist/data/repositories/sharing_repository.dart';
@@ -37,6 +38,10 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   // Use ValueNotifier for better performance (no setState rebuilds)
   final ValueNotifier<List<BlockModel>> _blocksNotifier = ValueNotifier([]);
   final ValueNotifier<List<ItemModel>> _subTasksNotifier = ValueNotifier([]);
+  
+  // Stream subscriptions for proper cleanup
+  StreamSubscription<List<BlockModel>>? _blocksSubscription;
+  StreamSubscription<List<ItemModel>>? _subTasksSubscription;
   
   // Debounce timer for text input
   Timer? _debounceTimer;
@@ -123,15 +128,19 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   void _loadBlocks() {
     if (_currentItem == null) return;
     
+    // Cancel existing subscriptions before creating new ones
+    _blocksSubscription?.cancel();
+    _subTasksSubscription?.cancel();
+    
     // Use ValueNotifier instead of setState for better performance
-    _repository.watchBlocks(_currentItem!.itemId).listen((blocks) {
+    _blocksSubscription = _repository.watchBlocks(_currentItem!.itemId).listen((blocks) {
       if (mounted) {
         _blocksNotifier.value = blocks;
       }
     });
     
     // Load sub-tasks
-    _repository.watchSubTasks(_currentItem!.itemId).listen((subTasks) {
+    _subTasksSubscription = _repository.watchSubTasks(_currentItem!.itemId).listen((subTasks) {
       if (mounted) {
         _subTasksNotifier.value = subTasks;
       }
@@ -174,6 +183,8 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
+    _blocksSubscription?.cancel();
+    _subTasksSubscription?.cancel();
     _titleController.dispose();
     _blocksNotifier.dispose();
     _subTasksNotifier.dispose();
@@ -208,6 +219,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         return true;
       },
       child: Scaffold(
+        resizeToAvoidBottomInset: false,
         backgroundColor: isDarkMode ? AppColors.bgScaffoldDark : AppColors.bgScaffold,
         appBar: AppBar(
           backgroundColor: isDarkMode ? AppColors.surfaceDark : Colors.white,
@@ -787,7 +799,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
 
     try {
       // Show QuickAddSheet to create a standalone task
-      await showModalBottomSheet(
+      final createdItemId = await showModalBottomSheet<String>(
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.transparent,
@@ -799,30 +811,26 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
         ),
       );
 
-      // Wait a bit for the task to be saved
-      await Future.delayed(const Duration(milliseconds: 500));
-      
-      // Get the most recently created task
-      final recentTasks = await _repository.getRecentTasks(limit: 1);
-      if (recentTasks.isNotEmpty) {
-        final taskItem = recentTasks.first;
-        
-        print('📝 Task created: ${taskItem.title} (itemId: ${taskItem.itemId})');
-        
-        // Create a block that references this task (NOT a sub-task, just a reference)
-        await _repository.createBlock(
-          itemId: _currentItem!.itemId,
-          type: BlockType.subTask,
-          content: taskItem.itemId, // Store task item_id in content
-          orderIndex: _blocksNotifier.value.length,
-        );
-        
-        print('✅ Block created linking to task');
-        
-        // IMPORTANT: Copy shares from the note to the task
-        // This ensures people who can see the note can also see the task
-        await _copySharesFromNoteToTask(_currentItem!.itemId, taskItem.itemId);
+      // If user cancelled or no task was created, return
+      if (createdItemId == null) {
+        return;
       }
+      
+      print('📝 Task created with itemId: $createdItemId');
+      
+      // Create a block that references this task (NOT a sub-task, just a reference)
+      await _repository.createBlock(
+        itemId: _currentItem!.itemId,
+        type: BlockType.subTask,
+        content: createdItemId, // Store task item_id in content
+        orderIndex: _blocksNotifier.value.length,
+      );
+      
+      print('✅ Block created linking to task');
+      
+      // IMPORTANT: Copy shares from the note to the task
+      // This ensures people who can see the note can also see the task
+      await _copySharesFromNoteToTask(_currentItem!.itemId, createdItemId);
     } finally {
       _isAddingTask = false;
     }
@@ -869,11 +877,11 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
     });
 
     try {
-      // Get API key
-      final apiKey = await _storage.read(key: 'gemini_api_key');
-      if (apiKey == null || apiKey.isEmpty) {
+      // Check if AI extraction is enabled
+      final enabled = await _storage.read(key: 'ai_extraction_enabled');
+      if (enabled != 'true') {
         if (mounted) {
-          _showError('Please configure your API key in Settings > AI Extraction');
+          _showError('Please enable AI extraction in Settings');
         }
         return;
       }
@@ -903,7 +911,7 @@ class _TaskDetailScreenState extends ConsumerState<TaskDetailScreen> {
       }
 
       // Extract multiple tasks with AI
-      final service = AIExtractionService(apiKey);
+      final service = AIExtractionService(AppConfig.geminiApiKey);
       final extractions = await service.extractMultipleTasks(fullText);
 
       if (extractions.isEmpty) {

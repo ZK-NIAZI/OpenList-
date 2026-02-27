@@ -509,6 +509,10 @@ class RealtimeService {
     _blocksChannel = null;
     _notificationsChannel = null;
     _isSubscribed = false;
+    
+    // Clear callbacks to prevent memory leaks
+    onNewNotification = null;
+    onDataChanged = null;
 
     print('✅ Realtime subscriptions stopped');
   }

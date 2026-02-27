@@ -7,7 +7,7 @@ plugins {
 
 android {
     namespace = "com.example.openlist"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -26,9 +26,13 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        
+        // Add Supabase config as build config fields to prevent obfuscation
+        buildConfigField("String", "SUPABASE_URL", "\"https://zbmkkrzwkacukdnorfgk.supabase.co\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpibWtrcnp3a2FjdWtkbm9yZmdrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzE1ODEwNzcsImV4cCI6MjA4NzE1NzA3N30.X4X4PTQvIiBPpMOMk7Y_BuIfxL7CI4GRbUwLniaUZU8\"")
     }
 
     buildTypes {
@@ -36,6 +40,22 @@ android {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            
+            // Completely disable all obfuscation and optimization
+            isMinifyEnabled = false
+            isShrinkResources = false
+            
+            // Don't use ProGuard at all
+            // proguardFiles(
+            //     getDefaultProguardFile("proguard-android-optimize.txt"),
+            //     "proguard-rules.pro"
+            // )
+        }
+    }
+    
+    packaging {
+        resources {
+            excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/license.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt", "META-INF/notice.txt", "META-INF/ASL2.0")
         }
     }
 }

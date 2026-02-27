@@ -60,21 +60,21 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       vsync: this,
     );
     
-    // Background rotation controller - slower for smoother performance
+    // Background rotation controller - disabled for better performance
     _backgroundController = AnimationController(
       duration: const Duration(seconds: 30),
       vsync: this,
-    )..repeat();
+    );
     
-    // Pulse controller - reduced frequency
+    // Pulse controller - disabled for better performance
     _pulseController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
-    )..repeat(reverse: true);
+    );
     
-    // Exit animation controller
+    // Exit animation controller - faster for snappier feel
     _exitController = AnimationController(
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
     );
     
@@ -149,26 +149,26 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       _backgroundController,
     );
     
-    // Exit animations - accent color expands up and fades out
+    // Exit animations - faster and simpler
     _expandAnimation = Tween<double>(begin: 0.70, end: 1.0).animate(
       CurvedAnimation(
         parent: _exitController,
-        curve: const Interval(0.0, 0.6, curve: Curves.easeInOut),
+        curve: Curves.easeInOut,
       ),
     );
     
     _fadeOutAnimation = Tween<double>(begin: 1.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _exitController,
-        curve: const Interval(0.4, 1.0, curve: Curves.easeIn),
+        curve: Curves.easeIn,
       ),
     );
     
-    // Start animations with slight delay to ensure smooth start
-    Future.delayed(const Duration(milliseconds: 100), () {
+    // Start animations with delay for better timing
+    Future.delayed(const Duration(milliseconds: 300), () {
       if (mounted) _logoController.forward();
     });
-    Future.delayed(const Duration(milliseconds: 300), () {
+    Future.delayed(const Duration(milliseconds: 700), () {
       if (mounted) _textController.forward();
     });
     
@@ -191,17 +191,51 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _navigateToNextScreen() async {
-    await Future.delayed(const Duration(milliseconds: 2000));
+    // Wait for Supabase to initialize (with timeout)
+    final startTime = DateTime.now();
+    bool supabaseReady = false;
+    
+    // Poll for Supabase initialization (max 4 seconds)
+    while (!supabaseReady && DateTime.now().difference(startTime).inMilliseconds < 4000) {
+      try {
+        // Try to access Supabase - will throw if not initialized
+        Supabase.instance.client;
+        supabaseReady = true;
+        debugPrint('✅ Supabase ready after ${DateTime.now().difference(startTime).inMilliseconds}ms');
+      } catch (e) {
+        // Not ready yet, wait a bit
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+    }
+    
+    if (!supabaseReady) {
+      debugPrint('⚠️ Supabase initialization timeout after 4 seconds');
+    }
+    
+    // Ensure we show splash for at least 4000ms total (4 seconds)
+    final elapsed = DateTime.now().difference(startTime).inMilliseconds;
+    if (elapsed < 4000) {
+      await Future.delayed(Duration(milliseconds: 4000 - elapsed));
+    }
     
     if (!mounted) return;
     
-    // Start exit animation
+    // Start exit animation (400ms for snappier feel)
     await _exitController.forward();
     
     if (!mounted) return;
     
-    final session = Supabase.instance.client.auth.currentSession;
-    final isLoggedIn = session != null;
+    // Navigate based on auth state
+    bool isLoggedIn = false;
+    
+    if (supabaseReady) {
+      try {
+        final session = Supabase.instance.client.auth.currentSession;
+        isLoggedIn = session != null;
+      } catch (e) {
+        debugPrint('Error checking auth state: $e');
+      }
+    }
     
     if (isLoggedIn) {
       context.go('/dashboard');

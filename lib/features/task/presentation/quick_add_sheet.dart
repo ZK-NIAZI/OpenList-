@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:openlist/core/theme/theme.dart';
+import 'package:openlist/core/config/app_config.dart';
 import 'package:openlist/data/repositories/item_repository.dart';
 import 'package:openlist/data/models/item_model.dart';
 import 'package:openlist/services/ai_extraction_service.dart';
@@ -53,20 +54,19 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+    return Container(
+      decoration: BoxDecoration(
+        color: isDarkMode ? AppColors.surfaceDark : Colors.white,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: isDarkMode ? AppColors.surfaceDark : Colors.white,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: SafeArea(
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
+      child: SafeArea(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
           // Header
           Padding(
             padding: const EdgeInsets.all(20),
@@ -321,8 +321,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
               ],
             ),
           ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -434,11 +433,11 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     });
 
     try {
-      // Get API key
-      final apiKey = await _storage.read(key: 'gemini_api_key');
-      if (apiKey == null || apiKey.isEmpty) {
+      // Check if AI extraction is enabled
+      final enabled = await _storage.read(key: 'ai_extraction_enabled');
+      if (enabled != 'true') {
         if (mounted) {
-          _showError('Please configure your API key in Settings > AI Extraction');
+          _showError('Please enable AI extraction in Settings');
         }
         return;
       }
@@ -448,7 +447,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
       final reminderOffset = int.parse(reminderOffsetStr);
 
       // Extract with AI
-      final service = AIExtractionService(apiKey);
+      final service = AIExtractionService(AppConfig.geminiApiKey);
       final extraction = await service.extractTask(text);
 
       if (extraction == null) {
@@ -568,7 +567,7 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
     try {
       // Save to Isar (offline-first)
       final repository = ItemRepository();
-      await repository.createItem(
+      final createdItem = await repository.createItem(
         title: _taskController.text.trim(),
         type: ItemType.task,
         category: _selectedCategory,
@@ -584,7 +583,8 @@ class _QuickAddSheetState extends State<QuickAddSheet> {
             duration: const Duration(seconds: 2),
           ),
         );
-        Navigator.pop(context);
+        // Return the created item's itemId
+        Navigator.pop(context, createdItem.itemId);
       }
     } catch (e) {
       if (mounted) {

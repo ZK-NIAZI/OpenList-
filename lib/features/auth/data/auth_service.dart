@@ -5,6 +5,17 @@ import 'package:openlist/data/sync/sync_manager.dart';
 class AuthService {
   final SupabaseClient _supabase = Supabase.instance.client;
 
+  // Check if Supabase is initialized
+  bool get isInitialized {
+    try {
+      // Check if we can access the auth instance
+      return _supabase.auth != null;
+    } catch (e) {
+      print('❌ Supabase not initialized: $e');
+      return false;
+    }
+  }
+
   // Get current user
   User? get currentUser => _supabase.auth.currentUser;
 
@@ -33,11 +44,25 @@ class AuthService {
     required String email,
     required String password,
   }) async {
-    final response = await _supabase.auth.signInWithPassword(
-      email: email,
-      password: password,
-    );
-    return response;
+    try {
+      print('🔐 Attempting sign in for: $email');
+      print('🔐 Supabase client initialized: ${_supabase != null}');
+      
+      final response = await _supabase.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      
+      print('🔐 Sign in response received');
+      print('🔐 User: ${response.user?.id}');
+      print('🔐 Session: ${response.session != null}');
+      
+      return response;
+    } catch (e, stackTrace) {
+      print('❌ Sign in error: $e');
+      print('❌ Stack trace: $stackTrace');
+      rethrow;
+    }
   }
 
   // Sign out

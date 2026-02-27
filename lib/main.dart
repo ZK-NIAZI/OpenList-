@@ -2,56 +2,74 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:openlist/app.dart';
 import 'package:openlist/core/config/supabase_config.dart';
 import 'package:openlist/core/config/app_config.dart';
 import 'package:openlist/data/local/isar_service.dart';
 import 'package:openlist/data/sync/sync_manager.dart';
 import 'package:openlist/data/repositories/space_repository.dart';
+import 'package:openlist/services/notification_service.dart';
 
 final secureStorage = const FlutterSecureStorage();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize critical services only - defer heavy operations
-  bool isarInitialized = false;
   bool supabaseInitialized = false;
+  bool isarInitialized = false;
   
-  // Initialize Isar Database (critical for app to work)
+  // Load config from assets FIRST
+  await SupabaseConfig.loadConfig();
+  
+  // Initialize Supabase BEFORE showing the app (critical for release builds)
   try {
-    await IsarService.instance.db;
-    isarInitialized = true;
-  } catch (e) {
+    final url = SupabaseConfig.supabaseUrl;
+    final key = SupabaseConfig.supabaseAnonKey;
+    
+    // Debug logging to verify URL is correct
     if (AppConfig.enableDebugLogging) {
-      debugPrint('❌ Isar initialization error: $e');
+      debugPrint('🔧 Supabase URL length: ${url.length}');
+      debugPrint('🔧 Supabase URL: $url');
+      debugPrint('🔧 Supabase Key length: ${key.length}');
     }
-  }
-  
-  // Initialize Supabase (critical for sync)
-  try {
+    
     await Supabase.initialize(
-      url: SupabaseConfig.supabaseUrl,
-      anonKey: SupabaseConfig.supabaseAnonKey,
+      url: url,
+      anonKey: key,
     );
     supabaseInitialized = true;
+    if (AppConfig.enableDebugLogging) {
+      debugPrint('✅ Supabase initialized');
+    }
   } catch (e) {
     if (AppConfig.enableDebugLogging) {
       debugPrint('❌ Supabase initialization error: $e');
     }
   }
   
-  // Show app immediately
+  // Show app after Supabase is ready
   runApp(
     const ProviderScope(
       child: App(),
     ),
   );
   
-  // Defer non-critical initialization to after first frame
+  // Initialize other services after first frame
   WidgetsBinding.instance.addPostFrameCallback((_) async {
-    // Initialize default spaces (deferred)
+    // Initialize Isar Database
+    try {
+      await IsarService.instance.db;
+      isarInitialized = true;
+      if (AppConfig.enableDebugLogging) {
+        debugPrint('✅ Isar initialized');
+      }
+    } catch (e) {
+      if (AppConfig.enableDebugLogging) {
+        debugPrint('❌ Isar initialization error: $e');
+      }
+    }
+    
+    // Initialize default spaces
     if (isarInitialized) {
       try {
         final spaceRepository = SpaceRepository();
@@ -63,29 +81,30 @@ Future<void> main() async {
       }
     }
     
-    // Start Sync Manager (deferred)
+    // Start Sync Manager (Supabase is already initialized)
     if (supabaseInitialized) {
       SyncManager.instance.start();
     }
     
-    // Initialize local notifications (deferred)
-    await initializeNotifications();
+    // Initialize notification service
+    try {
+      await NotificationService().initialize();
+      await NotificationService().requestPermissions();
+      
+      // Set up notification tap handler
+      NotificationService().onNotificationTapped = (taskId) {
+        // Navigation will be handled by the router when app is opened
+        print('📱 Task notification tapped: $taskId');
+        // The router will handle navigation based on the current app state
+      };
+      
+      if (AppConfig.enableDebugLogging) {
+        debugPrint('✅ Notification service initialized');
+      }
+    } catch (e) {
+      if (AppConfig.enableDebugLogging) {
+        debugPrint('❌ Notification service initialization error: $e');
+      }
+    }
   });
-}
-
-Future<void> initializeNotifications() async {
-  const androidSettings = AndroidInitializationSettings('@mipmap/ic_launcher');
-  const iosSettings = DarwinInitializationSettings(
-    requestAlertPermission: true,
-    requestBadgePermission: true,
-    requestSoundPermission: true,
-  );
-  
-  const settings = InitializationSettings(
-    android: androidSettings,
-    iOS: iosSettings,
-  );
-  
-  final plugin = FlutterLocalNotificationsPlugin();
-  await plugin.initialize(settings);
 }
