@@ -44,3 +44,7 @@ bin/
 # Project exclude paths
 /gradle/
 /src/
+
+# Sensitive config files with API keys
+assets/config.json
+.env
