@@ -8,6 +8,17 @@
 
 ---
 
+## 📸 Screenshots
+
+<div align="center">
+  <img src="assets/screenshots/splash.png" width="200" alt="Splash Screen"/>
+  <img src="assets/screenshots/dashboard.png" width="200" alt="Dashboard"/>
+  <img src="assets/screenshots/tasks.png" width="200" alt="Tasks"/>
+  <img src="assets/screenshots/ai_settings.png" width="200" alt="AI Settings"/>
+</div>
+
+---
+
 ## 🚀 Features
 
 ### ✅ Core Functionality
